@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cache Issues: A Deep Technical Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #151820;
+    --surface2: #1c2130;
+    --border: #2a3045;
+    --text: #dde2ef;
+    --muted: #7a85a0;
+    --accent-red: #ff4d6d;
+    --accent-orange: #ff8c42;
+    --accent-yellow: #ffd166;
+    --accent-teal: #06d6a0;
+    --accent-blue: #4cc9f0;
+    --accent-purple: #9b5de5;
+    --serif: 'DM Serif Display', Georgia, serif;
+    --sans: 'Inter', system-ui, sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.75;
+  }
+
+  .hero {
+    background: linear-gradient(135deg, #0d0f12 0%, #0a1628 50%, #0d0f12 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 80px 40px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 700px 400px at 50% 0%, rgba(76,201,240,0.06), transparent);
+  }
+
+  .hero-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent-teal);
+    border: 1px solid rgba(6,214,160,0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 400;
+    line-height: 1.1;
+    color: #fff;
+    max-width: 800px;
+    margin: 0 auto 20px;
+  }
+
+  h1 em {
+    color: var(--accent-red);
+    font-style: italic;
+  }
+
+  .hero-sub {
+    max-width: 560px;
+    margin: 0 auto;
+    color: var(--muted);
+    font-size: 17px;
+    font-weight: 300;
+  }
+
+  .toc-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 40px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .toc-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 8px;
+  }
+
+  .toc-link {
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .toc-link:hover {
+    color: var(--text);
+    border-color: var(--border);
+    background: var(--surface2);
+  }
+
+  .content {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 40px 80px;
+  }
+
+  .intro {
+    padding: 60px 0 48px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .intro p {
+    font-size: 17px;
+    color: #b8c0d8;
+    line-height: 1.8;
+    max-width: 700px;
+  }
+
+  .intro p + p { margin-top: 16px; }
+
+  /* Issue sections */
+  .issue {
+    padding: 64px 0 56px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .issue-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+
+  .issue-number {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    padding-top: 6px;
+    min-width: 28px;
+  }
+
+  .issue-meta {
+    flex: 1;
+  }
+
+  .issue-severity {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+  }
+
+  .severity-critical {
+    background: rgba(255,77,109,0.12);
+    color: var(--accent-red);
+    border: 1px solid rgba(255,77,109,0.25);
+  }
+
+  .severity-high {
+    background: rgba(255,140,66,0.12);
+    color: var(--accent-orange);
+    border: 1px solid rgba(255,140,66,0.25);
+  }
+
+  .severity-medium {
+    background: rgba(255,209,102,0.12);
+    color: var(--accent-yellow);
+    border: 1px solid rgba(255,209,102,0.25);
+  }
+
+  .severity-low {
+    background: rgba(6,214,160,0.12);
+    color: var(--accent-teal);
+    border: 1px solid rgba(6,214,160,0.25);
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(26px, 4vw, 38px);
+    font-weight: 400;
+    color: #fff;
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+
+  .issue-tagline {
+    color: var(--muted);
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .prose {
+    color: #b8c0d8;
+    font-size: 15.5px;
+    line-height: 1.85;
+  }
+
+  .prose p { margin-bottom: 16px; }
+
+  .prose strong { color: var(--text); font-weight: 500; }
+
+  /* Scenario callout */
+  .scenario {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-orange);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 24px 0;
+    font-size: 14px;
+    color: #a8b0c8;
+  }
+
+  .scenario-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-orange);
+    margin-bottom: 6px;
+  }
+
+  /* Diagram */
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 28px 0;
+    overflow: hidden;
+  }
+
+  .diagram-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  /* Flow diagrams */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-size: 13px;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+    position: relative;
+  }
+
+  .flow-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: 44px;
+    bottom: -4px;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .flow-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .flow-dot.bad { background: rgba(255,77,109,0.15); color: var(--accent-red); border: 1px solid rgba(255,77,109,0.3); }
+  .flow-dot.warn { background: rgba(255,140,66,0.15); color: var(--accent-orange); border: 1px solid rgba(255,140,66,0.3); }
+  .flow-dot.ok { background: rgba(6,214,160,0.15); color: var(--accent-teal); border: 1px solid rgba(6,214,160,0.3); }
+  .flow-dot.info { background: rgba(76,201,240,0.15); color: var(--accent-blue); border: 1px solid rgba(76,201,240,0.3); }
+
+  .flow-content strong { color: var(--text); display: block; margin-bottom: 2px; font-size: 13.5px; }
+  .flow-content span { color: var(--muted); font-size: 12.5px; }
+
+  /* Solutions grid */
+  .solutions-heading {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent-teal);
+    margin: 36px 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .solutions-heading::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .solutions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .solutions { grid-template-columns: 1fr; }
+    .content { padding: 0 20px 60px; }
+    .toc-bar { padding: 10px 20px; }
+    .hero { padding: 60px 20px 40px; }
+    .diagram-wrap { padding: 16px; }
+  }
+
+  .sol {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    transition: border-color 0.2s;
+  }
+
+  .sol:hover { border-color: rgba(76,201,240,0.3); }
+
+  .sol-name {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sol-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 2px 7px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+
+  .badge-primary { background: rgba(76,201,240,0.12); color: var(--accent-blue); border: 1px solid rgba(76,201,240,0.2); }
+  .badge-secondary { background: rgba(155,93,229,0.12); color: var(--accent-purple); border: 1px solid rgba(155,93,229,0.2); }
+  .badge-tradeoff { background: rgba(255,209,102,0.1); color: var(--accent-yellow); border: 1px solid rgba(255,209,102,0.2); }
+
+  .sol p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* Code blocks */
+  .code-block {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  .code-block pre {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #c8d0e8;
+    white-space: pre;
+  }
+
+  .code-block .kw { color: var(--accent-purple); }
+  .code-block .fn { color: var(--accent-blue); }
+  .code-block .str { color: var(--accent-teal); }
+  .code-block .cm { color: #4a5070; font-style: italic; }
+  .code-block .num { color: var(--accent-orange); }
+
+  /* Comparison table */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 28px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  thead tr {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  td {
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(42,48,69,0.6);
+    color: #b0b8d0;
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  .td-name { color: var(--text); font-weight: 500; }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid;
+  }
+
+  .tag-red { color: var(--accent-red); border-color: rgba(255,77,109,0.3); background: rgba(255,77,109,0.08); }
+  .tag-orange { color: var(--accent-orange); border-color: rgba(255,140,66,0.3); background: rgba(255,140,66,0.08); }
+  .tag-yellow { color: var(--accent-yellow); border-color: rgba(255,209,102,0.3); background: rgba(255,209,102,0.08); }
+  .tag-teal { color: var(--accent-teal); border-color: rgba(6,214,160,0.3); background: rgba(6,214,160,0.08); }
+  .tag-blue { color: var(--accent-blue); border-color: rgba(76,201,240,0.3); background: rgba(76,201,240,0.08); }
+
+  /* Final summary */
+  .summary {
+    padding: 64px 0 20px;
+  }
+
+  .summary h2 {
+    margin-bottom: 24px;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 32px;
+  }
+
+  @media (max-width: 700px) {
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+
+  .summary-card-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .summary-card-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .summary-card-fix {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  footer {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+
+  .inline-code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: rgba(76,201,240,0.08);
+    color: var(--accent-blue);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(76,201,240,0.15);
+  }
+
+  .alert {
+    background: rgba(255,77,109,0.07);
+    border: 1px solid rgba(255,77,109,0.2);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13.5px;
+    color: #c8a0a8;
+    margin: 20px 0;
+  }
+
+  .alert strong { color: var(--accent-red); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-tag">Engineering Deep Dive</div>
+  <h1>When Your Cache <em>Breaks</em> the System</h1>
+  <p class="hero-sub">A comprehensive guide to every major caching failure mode — what causes them, how they cascade, and how to defend against them.</p>
+</div>
+
+<nav class="toc-bar">
+  <span class="toc-label">Contents</span>
+  <a class="toc-link" href="#penetration">Penetration</a>
+  <a class="toc-link" href="#avalanche">Avalanche</a>
+  <a class="toc-link" href="#breakdown">Breakdown</a>
+  <a class="toc-link" href="#hotspot">Hotspot</a>
+  <a class="toc-link" href="#inconsistency">Inconsistency</a>
+  <a class="toc-link" href="#stampede">Stampede</a>
+  <a class="toc-link" href="#pollution">Pollution</a>
+  <a class="toc-link" href="#overflow">Overflow</a>
+  <a class="toc-link" href="#summary">Summary</a>
+</nav>
+
+<div class="content">
+
+  <div class="intro">
+    <p>Caching is the cornerstone of every high-throughput system. Done right, it slashes latency and keeps your database alive under load. Done wrong, it becomes the single most catastrophic point of failure in your architecture — one that can take down a database cluster in seconds or serve stale data to millions of users without anyone noticing for hours.</p>
+    <p>Beyond the famous trio of penetration, avalanche, and breakdown, there are five more failure modes that production systems regularly encounter. This guide covers all eight — from their root causes and blast radius to every known mitigation strategy, with real implementation examples.</p>
+  </div>
+
+  <!-- ─── 1. CACHE PENETRATION ─── -->
+  <div class="issue" id="penetration">
+    <div class="issue-header">
+      <div class="issue-number">01</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-high">⬤ High Severity</div>
+        <h2>Cache Penetration</h2>
+        <p class="issue-tagline">Requests that bypass the cache entirely, every single time</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p><strong>Cache penetration</strong> occurs when queries are made for data that does not exist in either the cache or the database. Because there is no result to cache, every repeated query pierces straight through to the database — the cache provides zero protection.</p>
+      <p>This is a particularly dangerous failure mode because it can be deliberately triggered. An attacker who discovers that querying <span class="inline-code">user_id=-1</span> always misses the cache can flood your system with millions of such requests, effectively using your cache as a weapon against your own database.</p>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-label">Real World Scenario</div>
+      An e-commerce site receives millions of requests for product IDs that don't exist (bots enumerating IDs, broken links, or malicious probing). The cache misses every time. The database takes the full load and falls over.
+    </div>
+
+    <div class="diagram-wrap">
+      <div class="diagram-title">Request flow — penetration pattern</div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-dot info">1</div>
+          <div class="flow-content">
+            <strong>Request arrives for non-existent key</strong>
+            <span>e.g. GET /user?id=-99999 or a malformed UUID</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot warn">2</div>
+          <div class="flow-content">
+            <strong>Cache MISS</strong>
+            <span>Key doesn't exist in Redis/Memcached — expected, not cached because it's never valid</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot bad">3</div>
+          <div class="flow-content">
+            <strong>Database query executes</strong>
+            <span>Returns NULL / empty result — no record exists</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot bad">✗</div>
+          <div class="flow-content">
+            <strong>Nothing is cached — cycle repeats infinitely</strong>
+            <span>Next identical request hits the DB again. Under load this destroys the database.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">Cache Null Results <span class="sol-badge badge-primary">Primary</span></div>
+        <p>When a DB query returns nothing, store a sentinel value (e.g. <span class="inline-code">"NULL"</span>) with a short TTL (30–300s). Subsequent requests hit the cache and return fast. Be careful: if the data is later created, the stale null must be invalidated.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Bloom Filter <span class="sol-badge badge-primary">Primary</span></div>
+        <p>A probabilistic data structure that answers "definitely not in the set" with zero false negatives. Put all valid keys into a Bloom filter at startup. Requests for keys the filter rejects never reach the DB at all.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Input Validation <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Validate ID formats and ranges before any cache/DB lookup. Negative IDs, malformed UUIDs, or IDs beyond the max sequence should return 400 immediately.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Rate Limiting <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Apply per-IP and per-key request rate limits at the edge layer. Burst protection prevents volumetric penetration attacks even if they slip past other filters.</p>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <pre><span class="cm">// Solution: Cache null results with short TTL</span>
+<span class="kw">async function</span> <span class="fn">getUser</span>(id) {
+  <span class="kw">const</span> cacheKey = <span class="str">`user:</span>${id}<span class="str">`</span>;
+  <span class="kw">const</span> cached = <span class="kw">await</span> redis.<span class="fn">get</span>(cacheKey);
+
+  <span class="kw">if</span> (cached === <span class="str">"__NULL__"</span>) <span class="kw">return null</span>; <span class="cm">// sentinel hit</span>
+  <span class="kw">if</span> (cached) <span class="kw">return</span> <span class="fn">JSON.parse</span>(cached);
+
+  <span class="kw">const</span> user = <span class="kw">await</span> db.<span class="fn">findUser</span>(id);
+
+  <span class="kw">if</span> (!user) {
+    <span class="kw">await</span> redis.<span class="fn">setex</span>(cacheKey, <span class="num">60</span>, <span class="str">"__NULL__"</span>); <span class="cm">// 60s TTL</span>
+    <span class="kw">return null</span>;
+  }
+
+  <span class="kw">await</span> redis.<span class="fn">setex</span>(cacheKey, <span class="num">3600</span>, <span class="fn">JSON.stringify</span>(user));
+  <span class="kw">return</span> user;
+}</pre>
+    </div>
+  </div>
+
+  <!-- ─── 2. CACHE AVALANCHE ─── -->
+  <div class="issue" id="avalanche">
+    <div class="issue-header">
+      <div class="issue-number">02</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-critical">⬤ Critical Severity</div>
+        <h2>Cache Avalanche</h2>
+        <p class="issue-tagline">Mass cache expiration or cache node failure causing a DB tsunami</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p><strong>Cache avalanche</strong> describes any event where a large portion of cached data expires simultaneously — or an entire cache tier goes down — causing a sudden, enormous flood of requests to hit the database all at once. Unlike penetration (targeted) or breakdown (single hot key), avalanche is a systemic collapse event.</p>
+      <p>The two classic triggers are: (1) mass TTL expiration — all cache entries were populated at the same time during a cold start, so they all expire at the same time; and (2) cache server failure — the Redis cluster crashes, taking all cached data with it.</p>
+    </div>
+
+    <div class="alert">
+      <strong>Blast radius:</strong> Avalanche events typically cause full database outages within 30–90 seconds. Even well-provisioned databases can be overwhelmed because the query volume increases by 10x–100x instantly, with no warm-up period.
+    </div>
+
+    <div class="diagram-wrap">
+      <div class="diagram-title">Timeline of an avalanche event</div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-dot info">T=0</div>
+          <div class="flow-content">
+            <strong>Cold start / cache restart</strong>
+            <span>10,000 cache keys are populated over 2 minutes. All are given TTL = 3600s.</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot warn">T=1h</div>
+          <div class="flow-content">
+            <strong>Mass expiration begins</strong>
+            <span>All 10,000 keys expire within a 2-minute window — because they were all set at the same time.</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot bad">T=1h+30s</div>
+          <div class="flow-content">
+            <strong>Database overwhelmed</strong>
+            <span>Every incoming request is a cache miss. DB connection pool exhausted. Query queue grows unbounded.</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot bad">T=1h+90s</div>
+          <div class="flow-content">
+            <strong>Cascade failure</strong>
+            <span>DB response times spike → app timeouts → retry storms amplify the load → full outage.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">TTL Jitter <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Randomize TTL values within a range: <span class="inline-code">TTL = base + random(0, jitter)</span>. This spreads expiration events across time, preventing synchronized mass expiry. Simple and highly effective.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Cache HA / Clustering <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Redis Sentinel or Redis Cluster with replica promotion eliminates single points of failure. When a master fails, a replica is promoted within seconds with data intact.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Circuit Breaker <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>When cache miss rate spikes above a threshold, open a circuit breaker that serves degraded/cached responses rather than hammering the DB. Let the cache rebuild before re-enabling full queries.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Multi-Level Cache <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Layer L1 (in-process, e.g. Caffeine) + L2 (Redis). If Redis fails, L1 continues serving recently-accessed data. L1 TTLs are typically very short (seconds to minutes), reducing DB exposure.</p>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <pre><span class="cm">// TTL jitter prevents synchronized expiration</span>
+<span class="kw">function</span> <span class="fn">setWithJitter</span>(redis, key, value, baseTTL, jitter = <span class="num">300</span>) {
+  <span class="kw">const</span> ttl = baseTTL + <span class="fn">Math.floor</span>(<span class="fn">Math.random</span>() * jitter);
+  <span class="kw">return</span> redis.<span class="fn">setex</span>(key, ttl, value);
+}
+
+<span class="cm">// e.g. base 3600s ± up to 300s → expires 60–65 min from now</span>
+<span class="fn">setWithJitter</span>(redis, <span class="str">"product:123"</span>, data, <span class="num">3600</span>, <span class="num">300</span>);</pre>
+    </div>
+  </div>
+
+  <!-- ─── 3. CACHE BREAKDOWN ─── -->
+  <div class="issue" id="breakdown">
+    <div class="issue-header">
+      <div class="issue-number">03</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-critical">⬤ Critical Severity</div>
+        <h2>Cache Breakdown</h2>
+        <p class="issue-tagline">A single hot key expires under concurrent load — the thundering herd</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p><strong>Cache breakdown</strong> (also called thundering herd or cache stampede) occurs when a single, extremely popular cache key expires at the exact moment it is being read by many concurrent requests. Since none of them find the key in the cache, all of them simultaneously query the database and attempt to repopulate the cache — multiplying the load by the number of concurrent requesters.</p>
+      <p>This is common for content like homepage banners, trending product pages, or live sports scores — data that is accessed by thousands of users per second and is expensive to recompute from the database.</p>
+    </div>
+
+    <div class="diagram-wrap">
+      <div class="diagram-title">Breakdown: 1000 concurrent requests, hot key just expired</div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-dot bad">✗</div>
+          <div class="flow-content">
+            <strong>Hot key expires (e.g. trending_products)</strong>
+            <span>1,000 requests in flight all miss the cache at the same instant</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot bad">✗</div>
+          <div class="flow-content">
+            <strong>All 1,000 query the DB simultaneously</strong>
+            <span>Each executes the same expensive JOIN query. DB CPU spikes to 100%.</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot warn">~</div>
+          <div class="flow-content">
+            <strong>All 1,000 attempt to write the result to cache</strong>
+            <span>Race condition — each overwriting the other. Cache network gets flooded too.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">Mutex Lock (SETNX) <span class="sol-badge badge-primary">Primary</span></div>
+        <p>When a cache miss is detected, only one thread acquires a distributed lock (via Redis <span class="inline-code">SETNX</span>) and queries the DB. Other threads wait briefly, then get the newly-populated cache entry.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Logical Expiration <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Store an embedded expiry timestamp inside the value itself. Never let the key truly expire in Redis. Background threads refresh proactively before the logical expiry is reached. All reads always get a value (possibly slightly stale).</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Probabilistic Early Refresh <span class="sol-badge badge-secondary">Advanced</span></div>
+        <p>XFetch algorithm: as a key approaches its TTL, each request has an increasing probability of triggering a proactive refresh. No lock needed. Distributes the refresh work naturally.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Stale-While-Revalidate <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Serve the stale (expired) value immediately while one background process refreshes the cache. Works well when brief staleness is acceptable and read performance is critical.</p>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <pre><span class="cm">// Mutex lock pattern — only one DB query for a hot miss</span>
+<span class="kw">async function</span> <span class="fn">getHotData</span>(key) {
+  <span class="kw">let</span> value = <span class="kw">await</span> redis.<span class="fn">get</span>(key);
+  <span class="kw">if</span> (value) <span class="kw">return</span> <span class="fn">JSON.parse</span>(value);
+
+  <span class="kw">const</span> lockKey = <span class="str">`lock:</span>${key}<span class="str">`</span>;
+  <span class="kw">const</span> acquired = <span class="kw">await</span> redis.<span class="fn">set</span>(lockKey, <span class="str">"1"</span>, <span class="str">"NX"</span>, <span class="str">"EX"</span>, <span class="num">3</span>);
+
+  <span class="kw">if</span> (acquired) {
+    <span class="cm">// We won the race — do the DB query</span>
+    <span class="kw">const</span> data = <span class="kw">await</span> db.<span class="fn">expensiveQuery</span>(key);
+    <span class="kw">await</span> redis.<span class="fn">setex</span>(key, <span class="num">3600</span>, <span class="fn">JSON.stringify</span>(data));
+    <span class="kw">await</span> redis.<span class="fn">del</span>(lockKey);
+    <span class="kw">return</span> data;
+  } <span class="kw">else</span> {
+    <span class="cm">// Lost the race — wait briefly then re-read</span>
+    <span class="kw">await</span> <span class="fn">sleep</span>(<span class="num">50</span>);
+    <span class="kw">return</span> <span class="fn">getHotData</span>(key); <span class="cm">// retry — should hit cache now</span>
+  }
+}</pre>
+    </div>
+  </div>
+
+  <!-- ─── 4. HOTSPOT / SKEWED ACCESS ─── -->
+  <div class="issue" id="hotspot">
+    <div class="issue-header">
+      <div class="issue-number">04</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-high">⬤ High Severity</div>
+        <h2>Cache Hotspot (Skewed Access)</h2>
+        <p class="issue-tagline">Traffic concentrates on a tiny fraction of keys, overloading a single node</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p>In distributed cache clusters, keys are partitioned across nodes (by consistent hashing or slot assignment). A hotspot emerges when a very small number of keys — or even a single key — receive a disproportionate share of traffic, overwhelming the one node responsible for them while other nodes sit idle.</p>
+      <p>This is different from breakdown (it's about sustained load, not expiration) and different from avalanche (it's localized, not global). A celebrity posting on a social platform, a viral product link, or a live streaming event can create a hotspot that degrades an entire cluster due to one overloaded Redis shard.</p>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">Key Replication / Mirroring <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Copy hot keys to N replica shards using a numeric suffix: <span class="inline-code">hot_key:0</span>, <span class="inline-code">hot_key:1</span>, ..., <span class="inline-code">hot_key:N</span>. Requests are randomly routed to any replica, spreading load across N nodes.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Local In-Process Cache (L1) <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Each application server maintains a small in-memory cache. Hot keys live there for a few seconds, absorbing per-server traffic before it ever reaches Redis. L1 misses fall through to Redis.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Read-Through with Coalescing <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Deduplicate in-flight requests for the same key at the application layer. If 100 requests arrive simultaneously for the same hot key, coalesce them into one upstream call and fan the result back to all 100 waiters.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Hotspot Detection & Alerting <span class="sol-badge badge-tradeoff">Operational</span></div>
+        <p>Monitor per-key QPS in your Redis layer. Alert when a single key exceeds a threshold (e.g. 10k ops/sec). Automated hot-key detection is available in Redis Enterprise and AWS ElastiCache.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 5. CACHE INCONSISTENCY ─── -->
+  <div class="issue" id="inconsistency">
+    <div class="issue-header">
+      <div class="issue-number">05</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-medium">⬤ Medium Severity</div>
+        <h2>Cache Inconsistency (Dirty Cache)</h2>
+        <p class="issue-tagline">The cache and database diverge — users get stale or wrong data</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p><strong>Cache inconsistency</strong> occurs when data in the cache no longer matches the data in the source of truth (the database). This can happen through update race conditions, failed cache invalidations, partial write failures, or failure to invalidate related keys when one key changes.</p>
+      <p>This is unique among cache failures because it doesn't cause performance problems — it silently serves wrong data. Users may see outdated prices, incorrect inventory counts, or deleted content. In financial or healthcare systems this can have serious consequences.</p>
+    </div>
+
+    <div class="diagram-wrap">
+      <div class="diagram-title">Race condition — stale write wins</div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-dot info">1</div>
+          <div class="flow-content">
+            <strong>Thread A reads x=1 from DB</strong>
+            <span>Cache miss, proceeds to read from DB</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot warn">2</div>
+          <div class="flow-content">
+            <strong>Thread B updates x=2, invalidates cache</strong>
+            <span>DB now has x=2, cache is empty</span>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-dot bad">3</div>
+          <div class="flow-content">
+            <strong>Thread A writes x=1 to cache (stale!)</strong>
+            <span>Cache now shows x=1 even though DB has x=2. Inconsistency introduced.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="solutions-heading">Cache Write Strategies</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>How It Works</th>
+            <th>Consistency</th>
+            <th>Performance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="td-name">Cache-Aside</td>
+            <td>App reads cache, on miss reads DB and populates cache</td>
+            <td><span class="tag tag-yellow">Eventual</span></td>
+            <td><span class="tag tag-teal">Good</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">Write-Through</td>
+            <td>Every DB write also updates cache synchronously</td>
+            <td><span class="tag tag-teal">Strong</span></td>
+            <td><span class="tag tag-yellow">Write overhead</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">Write-Behind</td>
+            <td>Write to cache first, async DB write follows</td>
+            <td><span class="tag tag-orange">Weak</span></td>
+            <td><span class="tag tag-teal">Excellent</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">Refresh-Ahead</td>
+            <td>Proactively refresh cache before TTL expires</td>
+            <td><span class="tag tag-teal">Good</span></td>
+            <td><span class="tag tag-teal">Good</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">Cache Invalidation</td>
+            <td>Delete cache key on every write; lazy repopulation</td>
+            <td><span class="tag tag-teal">Strong</span></td>
+            <td><span class="tag tag-yellow">Miss penalty</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="solutions-heading">Advanced Techniques</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">Version Tags / Cache Versioning <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Include a version token in cache keys: <span class="inline-code">user:123:v42</span>. On invalidation, bump the version globally. Old keys are ignored and naturally expire. Eliminates stale reads without explicit deletion.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Change Data Capture (CDC) <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Tools like Debezium stream DB write-ahead log changes to a message broker (Kafka). Cache invalidation listeners consume these events and purge/update affected keys in near-real-time.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 6. CACHE STAMPEDE ─── -->
+  <div class="issue" id="stampede">
+    <div class="issue-header">
+      <div class="issue-number">06</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-high">⬤ High Severity</div>
+        <h2>Cache Stampede (Dog-Pile)</h2>
+        <p class="issue-tagline">After a cache flush or cold start, all requests pile onto an empty cache</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p>A <strong>cache stampede</strong> is a variation of breakdown that occurs when the entire cache is cold — immediately after a deployment, cache flush, or service restart. Unlike breakdown (a single key expiring), stampede involves the whole cache being empty and traffic slamming into the database from the moment the service starts.</p>
+      <p>Stampedes are predictable events (they happen at every deploy) but are often overlooked in capacity planning. A system that handles normal traffic fine can completely fail for the first 60 seconds after a restart.</p>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">Cache Warming <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Before routing production traffic to a new instance, run a warm-up script that pre-populates the top-N most frequently accessed keys from the DB or a data snapshot. Service opens only when warm.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Gradual Traffic Ramp <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Use traffic splitting: route 5% of traffic to the new instance first. The cache warms under controlled load. Increase gradually to 100% as hit rate recovers. Blue-green and canary deployments facilitate this.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Shadow Cache Persistence <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Periodically snapshot the Redis cache to disk (RDB files). On restart, reload from the snapshot. Cache is immediately warm with data from minutes ago rather than being completely empty.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Request Queuing / Coalescing <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>During warm-up, queue duplicate requests for the same key. Only one DB query is made per key; the result fans out to all waiters. Prevents the "1000 threads, 1 key" problem during cold periods.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 7. CACHE POLLUTION ─── -->
+  <div class="issue" id="pollution">
+    <div class="issue-header">
+      <div class="issue-number">07</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-medium">⬤ Medium Severity</div>
+        <h2>Cache Pollution</h2>
+        <p class="issue-tagline">Infrequently-accessed data evicts high-value data from a limited cache</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p><strong>Cache pollution</strong> occurs when low-value or one-time-accessed data fills the cache, evicting high-frequency data that would have delivered much greater hit-rate value. The classic example: a bulk data export or a search scan reads millions of records once, each landing in the cache, flushing out your hot user profiles and product pages.</p>
+      <p>Symptoms are subtle: hit rate gradually degrades, average latency slowly rises, and there's no obvious error to trace. It's often diagnosed late by comparing hit rates before and after a large batch operation.</p>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">LFU Eviction Policy <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Least-Frequently-Used eviction naturally protects hot keys. Redis supports <span class="inline-code">allkeys-lfu</span>. Items accessed once are evicted long before those accessed thousands of times, regardless of recency.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Separate Cache Namespaces <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Use distinct Redis databases or separate Redis instances for different data categories (hot user data vs. batch/export data). Pollution in the batch namespace cannot affect the hot namespace.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">TTL Tiering by Access Pattern <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Assign very short TTLs (seconds) to data accessed rarely or in bulk scans. Assign long TTLs (hours) to hot user-facing data. Low-value data expires quickly before it can evict high-value data.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Bypass Cache for Batch Ops <span class="sol-badge badge-tradeoff">Operational</span></div>
+        <p>Route bulk exports, reporting queries, and admin batch reads directly to a read-replica DB, completely bypassing the cache layer. Preserves cache for user-facing traffic.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 8. CACHE OVERFLOW / MEMORY PRESSURE ─── -->
+  <div class="issue" id="overflow">
+    <div class="issue-header">
+      <div class="issue-number">08</div>
+      <div class="issue-meta">
+        <div class="issue-severity severity-medium">⬤ Medium Severity</div>
+        <h2>Cache Overflow & Memory Pressure</h2>
+        <p class="issue-tagline">Cache memory fills up — eviction policies determine what breaks</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p>Every cache has a finite memory limit. When that limit is reached, the configured <strong>eviction policy</strong> determines what happens next — and a wrong choice here can cause behavior ranging from silent performance degradation to outright errors. In Redis, the default <span class="inline-code">noeviction</span> policy causes write errors when memory is full, which is often the worst possible behavior for a production cache.</p>
+      <p>Beyond eviction policies, memory fragmentation — where allocated but unused memory gaps accumulate — can effectively reduce usable cache space without the memory limit being reached, causing subtle degradation over days or weeks.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Redis Policy</th>
+            <th>Behavior at Max Memory</th>
+            <th>Best For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="td-name">noeviction</td>
+            <td>Returns error on new writes</td>
+            <td><span class="tag tag-red">Avoid for caches</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">allkeys-lru</td>
+            <td>Evicts least recently used from all keys</td>
+            <td><span class="tag tag-teal">General cache</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">allkeys-lfu</td>
+            <td>Evicts least frequently used from all keys</td>
+            <td><span class="tag tag-teal">Hot key protection</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">volatile-lru</td>
+            <td>Evicts LRU among keys that have a TTL set</td>
+            <td><span class="tag tag-blue">Mixed TTL workloads</span></td>
+          </tr>
+          <tr>
+            <td class="td-name">allkeys-random</td>
+            <td>Evicts random key from all keys</td>
+            <td><span class="tag tag-yellow">Uniform access only</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="solutions-heading">Solutions & Defences</div>
+    <div class="solutions">
+      <div class="sol">
+        <div class="sol-name">Use allkeys-lfu or allkeys-lru <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Change the default <span class="inline-code">noeviction</span> policy to <span class="inline-code">allkeys-lfu</span> for any Redis instance used purely as a cache. This allows graceful eviction rather than write failures.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Memory Monitoring & Alerts <span class="sol-badge badge-primary">Primary</span></div>
+        <p>Alert at 75% and 90% memory usage. At 75%, trigger capacity review. At 90%, trigger automatic scale-out (horizontal Redis Cluster expansion or new shards).</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Active Defragmentation <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Enable Redis <span class="inline-code">activedefrag yes</span>. Redis will gradually compact memory pages in the background, recovering fragmented space without a restart.</p>
+      </div>
+      <div class="sol">
+        <div class="sol-name">Value Compression <span class="sol-badge badge-secondary">Complementary</span></div>
+        <p>Compress large cached objects (msgpack, snappy, zstd) before storing. A 10KB JSON value compressed with zstd may drop to 1–2KB. Effectively multiplies cache capacity with minimal CPU overhead.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SUMMARY ─── -->
+  <div class="summary" id="summary">
+    <h2>At a Glance</h2>
+    <p class="prose" style="max-width:640px;">Eight failure modes, each with a distinct fingerprint. The three most dangerous — avalanche, breakdown, and penetration — share one solution philosophy: prevent synchronized, uncontrolled database access. The rest require careful attention to data freshness, memory discipline, and deployment hygiene.</p>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-red">Critical</span></div>
+        <div class="summary-card-name">Cache Avalanche</div>
+        <div class="summary-card-fix">TTL jitter + Redis HA + circuit breakers</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-red">Critical</span></div>
+        <div class="summary-card-name">Cache Breakdown</div>
+        <div class="summary-card-fix">Mutex lock or logical expiration</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-orange">High</span></div>
+        <div class="summary-card-name">Cache Penetration</div>
+        <div class="summary-card-fix">Bloom filter + null caching</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-orange">High</span></div>
+        <div class="summary-card-name">Cache Hotspot</div>
+        <div class="summary-card-fix">Key replication + local L1 cache</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-orange">High</span></div>
+        <div class="summary-card-name">Cache Stampede</div>
+        <div class="summary-card-fix">Cache warming + traffic ramp</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-yellow">Medium</span></div>
+        <div class="summary-card-name">Cache Inconsistency</div>
+        <div class="summary-card-fix">Write-through or CDC invalidation</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-yellow">Medium</span></div>
+        <div class="summary-card-name">Cache Pollution</div>
+        <div class="summary-card-fix">LFU eviction + namespace separation</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label"><span class="tag tag-yellow">Medium</span></div>
+        <div class="summary-card-name">Cache Overflow</div>
+        <div class="summary-card-fix">allkeys-lfu + active defrag + compression</div>
+      </div>
+      <div class="summary-card" style="grid-column: span 1; background: rgba(6,214,160,0.05); border-color: rgba(6,214,160,0.2);">
+        <div class="summary-card-label" style="color:var(--accent-teal)">Universal</div>
+        <div class="summary-card-name">Observability</div>
+        <div class="summary-card-fix">Monitor hit rate, p99 latency, eviction rate, and per-key QPS at all times</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>cache-issues-guide.html · 8 failure modes · solutions for each</footer>
+
+</body>
+</html>
